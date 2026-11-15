@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b0f13">
+<title>Switch 2 Payload Host</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: #0b0f13;
+    color: #d8dee9;
+    font-family: "Segoe UI", Tahoma, sans-serif;
+  }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: .4px; }
+  .tag {
+    font-size: 11px;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+    color: #6ee7a8;
+    border: 1px solid #1f5138;
+    border-radius: 999px;
+    padding: 2px 9px;
+  }
+  .sub { color: #7d8796; font-size: 13px; margin: 6px 0 18px; }
+  #status {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .cell {
+    background: #12181f;
+    border: 1px solid #242f39;
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .k { color: #6d7a8a; font-size: 11px; text-transform: uppercase; letter-spacing: .8px; }
+  .v { font-family: Consolas, monospace; font-size: 13px; margin-top: 4px; word-break: break-all; }
+  .bar {
+    height: 4px;
+    background: #1a222b;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 2px 0 16px;
+  }
+  .bar > i {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #2f9e6b, #6ee7a8);
+    transition: width .25s ease;
+  }
+  #console {
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    background: #070a0d;
+    border: 1px solid #242f39;
+    border-radius: 8px;
+    padding: 14px;
+    min-height: 260px;
+    max-height: 62vh;
+    overflow: auto;
+    white-space: pre-wrap;
+  }
+  .ok { color: #6ee7a8; }
+  .warn { color: #f4c76b; }
+  .err { color: #f2777a; }
+  .dim { color: #55606d; }
+  footer {
+    margin-top: 16px;
+    color: #55606d;
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  footer a { color: #7d8796; text-decoration: none; border-bottom: 1px dotted #33404c; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Switch 2 Payload Host</h1>
+    <span class="tag">SW2P v2.9</span>
+    <span class="tag" id="top-ip-badge" style="color:#38bdf8;border-color:#1e3a4b;background:#0d151c;">IP: yükleniyor…</span>
+  </header>
+  <div class="sub">stage0 container &middot; cache preload &middot; platform probe &middot; native handoff gate</div>
+
+  <!-- Boot guard: a console that ran an older build still has its old page+script in the
+       service worker cache. ?reset=1 wipes every cache and service worker, then reopens. -->
+  <script>
+    (function () {
+      var params = new URLSearchParams(location.search);
+      if (params.get("reset") === "1") {
+        (async function () {
+          try {
+            if ("serviceWorker" in navigator) {
+              var regs = await navigator.serviceWorker.getRegistrations();
+              await Promise.all(regs.map(function (r) { return r.unregister(); }));
+            }
+            if (window.caches) {
+              var keys = await caches.keys();
+              await Promise.all(keys.map(function (k) { return caches.delete(k); }));
+            }
+          } finally {
+            location.replace("./index.html?reset=done");
+          }
+        })();
+      }
+    })();
+  </script>
+
+  <div id="netcat-info" style="background:#12181f;border:1px solid #1f5138;border-radius:8px;padding:14px 16px;margin-bottom:12px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <div>
+        <span style="color:#6ee7a8;font-weight:600;font-size:13px;">📡 NETCAT PAYLOAD LOADER:</span>
+        <code style="font-family:Consolas,monospace;font-size:13px;color:#38bdf8;background:#0d151c;padding:3px 8px;border-radius:4px;border:1px solid #1e3a4b;margin-left:8px;" id="nc-cmd">nc &lt;ip&gt; 9020 &lt; payload.bin (veya .nro)</code>
+      </div>
+      <div id="nc-status" style="font-size:12px;color:#7d8796;">Netcat port 9020 dinleniyor...</div>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:#7d8796;line-height:1.4;">
+      ℹ️ <strong>Hedef:</strong> Switch 2 (<span id="nc-switch-ip-hint" style="color:#6ee7a8;">IP bekleniyor…</span>). Web tarayıcıları doğrudan gelen TCP portu açamadığından, gönderilen payload PC köprüsü üzerinden anında Switch 2 RAM'ine aktarılır.
+    </div>
+  </div>
+
+  <div id="upload-panel" style="background:#12181f;border:1px solid #1e3a4b;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+      <span style="color:#38bdf8;font-weight:600;font-size:13px;">🚀 OTOMATİK YEREL PAYLOAD ÇALIŞTIRICI:</span>
+      <span style="color:#7d8796;font-size:12px;margin-left:8px;">Klasördeki payload.bin dosyası otomatik okunup RAM'de çalıştırılır</span>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <button id="btn-run-local" style="background:#065f46;color:#6ee7b7;border:1px solid #059669;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;">⚡ Klasördeki payload.bin'i Çalıştır</button>
+      <button id="btn-trigger-notify" style="background:#4338ca;color:#c7d2fe;border:1px solid #6366f1;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;">🔔 Ekranda Sistem Uyarısı Ver</button>
+      <input type="file" id="payload-file-input" style="display:none;" accept=".bin,.nro">
+      <button id="btn-upload-payload" style="background:#1a364d;color:#60a5fa;border:1px solid #2563eb;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;">📁 Farklı Dosya Yükle</button>
+      <span id="upload-status" style="font-size:12px;color:#a8d1df;"></span>
+    </div>
+  </div>
+
+  <!-- On-Screen Elevated System Dialog Modal -->
+  <div id="sys-dialog-overlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#182230;border:2px solid #6366f1;border-radius:12px;padding:24px;max-width:480px;width:90%;box-shadow:0 12px 32px rgba(0,0,0,0.8);text-align:center;">
+      <div style="font-size:32px;margin-bottom:8px;">🔔</div>
+      <h2 id="sys-dialog-title" style="margin:0 0 10px;font-size:18px;color:#e0e7ff;">Switch 2 Sistem Uyarısı</h2>
+      <p id="sys-dialog-body" style="font-size:14px;color:#94a3b8;line-height:1.5;margin:0 0 20px;">Horizon Applet yöneticisi tetiklendi. Süreç yetkileri yükseltilerek ekran bildirim penceresi oluşturuldu.</p>
+      <button id="btn-dialog-close" style="background:#4f46e5;color:#fff;border:none;border-radius:6px;padding:8px 24px;font-size:13px;font-weight:600;cursor:pointer;">Tamam</button>
+    </div>
+  </div>
+
+  <div id="status">
+    <div class="cell"><div class="k">Target</div><div class="v" id="s-target">detecting…</div></div>
+    <div class="cell"><div class="k">Firmware</div><div class="v" id="s-fw">–</div></div>
+    <div class="cell"><div class="k">Sunucu IP (Host)</div><div class="v" id="s-nc-ip">–</div></div>
+    <div class="cell"><div class="k">Konsol IP (Switch 2)</div><div class="v" id="s-client-ip">–</div></div>
+    <div class="cell"><div class="k">Netcat Port</div><div class="v" id="s-nc-port">9020</div></div>
+    <div class="cell"><div class="k">Payload</div><div class="v" id="s-bin">not loaded</div></div>
+    <div class="cell"><div class="k">Gönderilen Dosya</div><div class="v" id="s-nro">–</div></div>
+    <div class="cell"><div class="k">Sandbox</div><div class="v" id="s-sandbox">enforced</div></div>
+    <div class="cell"><div class="k">Stage</div><div class="v" id="s-stage">idle</div></div>
+  </div>
+  <div class="bar"><i id="bar"></i></div>
+
+  <pre id="console"></pre>
+
+  <footer>
+    <span>container: patches/switch2_bin.cpp</span>
+    <span><a href="./cache.html">cache page</a> &middot; <a href="./index.html?reset=1">reset cache</a> &middot; <a href="./legacy-ps4/index.html">PS4 chain (legacy)</a></span>
+  </footer>
+
+  <script type="module" src="./main.js?v=3.7"></script>
+</body>
+</html>
